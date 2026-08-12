@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars and fill in with your own account details.
+# terraform.tfvars is gitignored; this file is not.
+#
+#   cp terraform.tfvars.example terraform.tfvars
+
+profile     = "CHANGE_ME"
+dns_profile = "CHANGE_ME"
+domain      = "example.com"
+
+# Optional overrides
+# region      = "eu-west-1"
+# environment = "sbx"
+# project     = "static-website"
+# app         = "demo"
