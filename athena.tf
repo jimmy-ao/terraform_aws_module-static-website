@@ -6,6 +6,8 @@ resource "aws_athena_database" "logs" {
   name          = local.athena_name
   force_destroy = true
 
+  bucket = one(aws_s3_bucket.logs[*].bucket)
+
   encryption_configuration {
     encryption_option = "SSE_KMS"
     kms_key           = one(aws_kms_key.s3_logs[*].arn)
