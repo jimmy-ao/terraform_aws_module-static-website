@@ -56,7 +56,7 @@ resource "aws_athena_named_query" "page_views_daily" {
       COUNT(DISTINCT c_ip)  AS unique_visitors
     FROM ${one(aws_glue_catalog_table.s3_logs[*].name)}
     WHERE ${local.athena_recent}
-      AND sc_status = 200
+      AND sc_status = '200'
       AND cs_uri_stem LIKE '%.html'
     GROUP BY "date"
     ORDER BY "date" DESC;
@@ -77,7 +77,7 @@ resource "aws_athena_named_query" "top_pages" {
       COUNT(*)    AS hits
     FROM ${one(aws_glue_catalog_table.s3_logs[*].name)}
     WHERE ${local.athena_recent}
-      AND sc_status = 200
+      AND sc_status = '200'
     GROUP BY cs_uri_stem
     ORDER BY hits DESC
     LIMIT 20;
@@ -95,8 +95,8 @@ resource "aws_athena_named_query" "traffic_by_country" {
   query = <<-EOT
     SELECT
       c_country,
-      COUNT(*)                       AS requests,
-      SUM(sc_bytes) / 1024.0 / 1024.0 AS data_transferred_mb
+      COUNT(*)                                        AS requests,
+      SUM(CAST(sc_bytes AS bigint)) / 1024.0 / 1024.0 AS data_transferred_mb
     FROM ${one(aws_glue_catalog_table.s3_logs[*].name)}
     WHERE ${local.athena_recent}
     GROUP BY c_country
@@ -121,7 +121,7 @@ resource "aws_athena_named_query" "errors" {
       COUNT(*) AS occurrences
     FROM ${one(aws_glue_catalog_table.s3_logs[*].name)}
     WHERE ${local.athena_recent}
-      AND sc_status >= 400
+      AND CAST(sc_status AS integer) >= 400
     GROUP BY sc_status, cs_uri_stem, x_edge_result_type
     ORDER BY occurrences DESC
     LIMIT 50;

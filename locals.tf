@@ -25,52 +25,10 @@ locals {
 
   content_security_policy = length(var.cloudfront_content_security_policy_directives) > 0 ? join("; ", var.cloudfront_content_security_policy_directives) : null
 
-  log_field_types = {
-    "date"                        = "string"
-    "time"                        = "string"
-    "x-edge-location"             = "string"
-    "sc-bytes"                    = "bigint"
-    "c-ip"                        = "string"
-    "cs-method"                   = "string"
-    "cs(Host)"                    = "string"
-    "cs-uri-stem"                 = "string"
-    "sc-status"                   = "int"
-    "cs(Referer)"                 = "string"
-    "cs(User-Agent)"              = "string"
-    "cs-uri-query"                = "string"
-    "cs(Cookie)"                  = "string"
-    "x-edge-result-type"          = "string"
-    "x-edge-request-id"           = "string"
-    "x-host-header"               = "string"
-    "cs-protocol"                 = "string"
-    "cs-bytes"                    = "bigint"
-    "time-taken"                  = "double"
-    "x-forwarded-for"             = "string"
-    "ssl-protocol"                = "string"
-    "ssl-cipher"                  = "string"
-    "x-edge-response-result-type" = "string"
-    "cs-protocol-version"         = "string"
-    "fle-status"                  = "string"
-    "fle-encrypted-fields"        = "int"
-    "c-port"                      = "int"
-    "time-to-first-byte"          = "double"
-    "x-edge-detailed-result-type" = "string"
-    "sc-content-type"             = "string"
-    "sc-content-len"              = "bigint"
-    "sc-range-start"              = "bigint"
-    "sc-range-end"                = "bigint"
-    "c-country"                   = "string"
-    "cache-behavior-path-pattern" = "string"
-    "timestamp(ms)"               = "bigint"
-    "origin-fbl"                  = "double"
-    "origin-lbl"                  = "double"
-    "asn"                         = "string"
-  }
-
   log_columns_derived = [
     for field in var.logging.record_fields : {
-      name = trim(lower(replace(field, "/[^0-9A-Za-z]+/", "_")), "_")
-      type = lookup(local.log_field_types, field, "string")
+      name = trim(replace(field, "/[^0-9A-Za-z]+/", "_"), "_")
+      type = "string"
     }
   ]
 
