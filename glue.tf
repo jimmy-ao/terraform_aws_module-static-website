@@ -35,8 +35,9 @@ resource "aws_glue_catalog_table" "s3_logs" {
     "projection.enabled"               = "true"
     "projection.distributionid.type"   = "enum"
     "projection.distributionid.values" = aws_cloudfront_distribution.web.id
-    "projection.year.type"             = "integer"
-    "projection.year.range"            = "${var.analyzing.partition_start_year},2100"
+    "projection.year.type"             = "date"
+    "projection.year.format"           = "yyyy"
+    "projection.year.range"            = "NOW-1YEARS,NOW"
     "projection.month.type"            = "integer"
     "projection.month.range"           = "1,12"
     "projection.month.digits"          = "2"

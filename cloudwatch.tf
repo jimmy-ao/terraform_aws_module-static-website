@@ -41,7 +41,7 @@ resource "aws_cloudwatch_log_delivery" "cloudfront_s3" {
   record_fields = var.logging.record_fields
 
   s3_delivery_configuration {
-    suffix_path = "{distributionid}/{yyyy}/{MM}/{dd}"
+    suffix_path                 = "{distributionid}/{yyyy}/{MM}/{dd}"
     enable_hive_compatible_path = true
   }
 
