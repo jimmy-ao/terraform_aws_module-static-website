@@ -165,9 +165,50 @@ The optional ones worth knowing about:
 | `waf` | on | `enabled = false` to skip it, or hand it a `web_acl_arn` to reuse one you already have |
 | `logging` | off | `{ enabled = true }` and you get access logs |
 | `analyzing` | off | Athena and Glue over those logs. Needs `logging` on |
+| `additional_origins` | `{}` | More origins, keyed by ID: `type = "s3"` (signed with the module's OAC) or `"http"` (HTTPS only), e.g. an API Gateway endpoint |
+| `ordered_cache_behaviors` | `[]` | Path patterns routed to those origins, in order. Cache policy defaults to CachingOptimized |
+| `directory_index_rewrite` | off | CloudFront Function turning `/docs/` and `/docs` into `/docs/index.html`. Behaviors opt in one by one |
 
 `terraform-docs markdown .` spits out the full list if you need the
 geo-restriction, TLS or WAF tuning knobs.
+
+### Serving an API and a second bucket from the same domain
+
+```hcl
+data "aws_cloudfront_cache_policy" "disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+data "aws_cloudfront_origin_request_policy" "api" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
+module "website" {
+  # …required inputs…
+
+  directory_index_rewrite = true
+
+  additional_origins = {
+    api     = { type = "http", domain_name = "abc123.execute-api.eu-north-1.amazonaws.com" }
+    content = { type = "s3", domain_name = aws_s3_bucket.content.bucket_regional_domain_name }
+  }
+
+  ordered_cache_behaviors = [
+    {
+      path_pattern             = "/api/*"
+      origin                   = "api"
+      allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cache_policy_id          = data.aws_cloudfront_cache_policy.disabled.id
+      origin_request_policy_id = data.aws_cloudfront_origin_request_policy.api.id
+    },
+    { path_pattern = "/media/*", origin = "content" },
+  ]
+}
+```
+
+The module doesn't touch the extra bucket's policy: grant `s3:GetObject` to
+`cloudfront.amazonaws.com` with `AWS:SourceArn` set to the `cloudfront_arn`
+output yourself.
 
 ## Outputs
 
@@ -218,7 +259,14 @@ through `analyzing.columns` rather than editing the module.
 
 **S3 answers 403, not 404.** Behind an Origin Access Control, a missing object
 comes back as access-denied. That's why the module maps 403 to your error page and
-returns a 404 status, and why there's no separate 404 rule.
+returns a 404 status, and why there's no separate 404 rule. That mapping is
+distribution-wide: once you add an API origin, any 403 it returns also reaches the
+browser as your error page with a 404. Have the API answer 401 or 404 instead.
+
+**Extra origins and behaviors are yours to keep tidy.** The response headers
+policy (CSP included) applies to every behavior, so an API under the same domain
+is fine but a third-party origin may need its own CSP entries. CloudFront
+Functions cost nothing up to 2M invocations a month, then $0.10 per million.
 
 ## 💸 What it costs, roughly
 

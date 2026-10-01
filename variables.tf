@@ -252,6 +252,82 @@ variable "cloudfront_error_document" {
   }
 }
 
+# origins and behaviors
+
+variable "cloudfront_additional_origins" {
+  type = map(object({
+    type        = string # "s3" (reuses the module's OAC) or "http"
+    domain_name = string
+    origin_path = optional(string)
+  }))
+  description = "Extra origins, keyed by origin ID. S3 origins are signed with the module's Origin Access Control; granting the distribution read access in their bucket policy is the caller's job (use the cloudfront_arn output). HTTP origins are reached over HTTPS only."
+  default     = {}
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for o in values(var.cloudfront_additional_origins) : contains(["s3", "http"], o.type)])
+    error_message = "Each additional origin type must be s3 or http."
+  }
+
+  validation {
+    condition     = alltrue([for k in keys(var.cloudfront_additional_origins) : can(regex("^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$", k))])
+    error_message = "Each additional origin key is used as CloudFront origin ID: 1 to 64 letters, digits, hyphens and underscores."
+  }
+}
+
+variable "cloudfront_ordered_cache_behaviors" {
+  type = list(object({
+    path_pattern             = string
+    origin                   = string # key of var.additional_origins
+    allowed_methods          = optional(list(string), ["GET", "HEAD"])
+    cached_methods           = optional(list(string), ["GET", "HEAD"])
+    cache_policy_id          = optional(string) # default: Managed-CachingOptimized
+    origin_request_policy_id = optional(string)
+    directory_index_rewrite  = optional(bool, false)
+  }))
+  description = "Path-based behaviors evaluated before the default one, in list order. Each one gets the module's response headers policy and viewer protocol policy."
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for b in var.cloudfront_ordered_cache_behaviors : contains(keys(var.cloudfront_additional_origins), b.origin)])
+    error_message = "Each behavior's origin must be a key of var.additional_origins."
+  }
+
+  validation {
+    condition     = length(distinct([for b in var.cloudfront_ordered_cache_behaviors : b.path_pattern])) == length(var.cloudfront_ordered_cache_behaviors)
+    error_message = "Path patterns must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for b in var.cloudfront_ordered_cache_behaviors :
+      contains([["GET", "HEAD"], ["GET", "HEAD", "OPTIONS"], ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]], sort(b.allowed_methods))
+    ])
+    error_message = "allowed_methods must be one of the sets CloudFront accepts: GET+HEAD, GET+HEAD+OPTIONS, or all seven methods."
+  }
+
+  validation {
+    condition = alltrue([
+      for b in var.cloudfront_ordered_cache_behaviors :
+      contains([["GET", "HEAD"], ["GET", "HEAD", "OPTIONS"]], sort(b.cached_methods))
+    ])
+    error_message = "cached_methods must be GET+HEAD or GET+HEAD+OPTIONS."
+  }
+
+  validation {
+    condition     = var.directory_index_rewrite || !anytrue([for b in var.cloudfront_ordered_cache_behaviors : b.cloudfront_directory_index_rewrite])
+    error_message = "A behavior with directory_index_rewrite = true needs var.directory_index_rewrite = true, which creates the function."
+  }
+}
+
+variable "cloudfront_directory_index_rewrite" {
+  type        = bool
+  description = "Attach a CloudFront Function to the default behavior that maps /path/ and /path (no extension) to /path/index.html, since S3 behind Origin Access Control has no index documents. Ordered behaviors opt in with their own directory_index_rewrite."
+  default     = false
+  nullable    = false
+}
+
 # logging
 
 variable "logging" {
