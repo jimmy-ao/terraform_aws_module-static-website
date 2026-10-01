@@ -66,11 +66,54 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   }
 }
 
+resource "aws_cloudfront_function" "index_rewrite" {
+  count = var.cloudfront_directory_index_rewrite ? 1 : 0
+
+  name    = "${local.cf_oac_name}-index"
+  runtime = "cloudfront-js-2.0"
+  comment = "Map directory URIs to index.html for ${var.app}."
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var uri = request.uri;
+      if (uri.endsWith('/')) {
+        request.uri = uri + 'index.html';
+      } else if (uri.split('/').pop().indexOf('.') === -1) {
+        request.uri = uri + '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "web" {
   origin {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
     origin_id                = local.bucket_name
     origin_access_control_id = aws_cloudfront_origin_access_control.web.id
+  }
+
+  dynamic "origin" {
+    for_each = var.cloudfront_additional_origins
+
+    content {
+      origin_id                = origin.key
+      domain_name              = origin.value.domain_name
+      origin_path              = origin.value.origin_path
+      origin_access_control_id = origin.value.type == "s3" ? aws_cloudfront_origin_access_control.web.id : null
+
+      dynamic "custom_origin_config" {
+        for_each = origin.value.type == "http" ? [1] : []
+
+        content {
+          http_port              = 80
+          https_port             = 443
+          origin_protocol_policy = "https-only"
+          origin_ssl_protocols   = ["TLSv1.2"]
+        }
+      }
+    }
   }
 
   aliases = local.aliases
@@ -100,6 +143,42 @@ resource "aws_cloudfront_distribution" "web" {
     viewer_protocol_policy = var.cloudfront_protocol_policy
 
     compress = true
+
+    dynamic "function_association" {
+      for_each = var.cloudfront_directory_index_rewrite ? [1] : []
+
+      content {
+        event_type   = "viewer-request"
+        function_arn = aws_cloudfront_function.index_rewrite[0].arn
+      }
+    }
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = var.cloudfront_ordered_cache_behaviors
+
+    content {
+      path_pattern     = ordered_cache_behavior.value.path_pattern
+      target_origin_id = ordered_cache_behavior.value.origin
+      allowed_methods  = ordered_cache_behavior.value.allowed_methods
+      cached_methods   = ordered_cache_behavior.value.cached_methods
+
+      cache_policy_id            = coalesce(ordered_cache_behavior.value.cache_policy_id, data.aws_cloudfront_cache_policy.caching_optimized.id)
+      origin_request_policy_id   = ordered_cache_behavior.value.origin_request_policy_id
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.web.id
+
+      viewer_protocol_policy = var.cloudfront_protocol_policy
+      compress               = true
+
+      dynamic "function_association" {
+        for_each = var.cloudfront_directory_index_rewrite && ordered_cache_behavior.value.directory_index_rewrite ? [1] : []
+
+        content {
+          event_type   = "viewer-request"
+          function_arn = aws_cloudfront_function.index_rewrite[0].arn
+        }
+      }
+    }
   }
 
   restrictions {
