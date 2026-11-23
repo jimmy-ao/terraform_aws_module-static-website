@@ -316,8 +316,8 @@ variable "cloudfront_ordered_cache_behaviors" {
   }
 
   validation {
-    condition     = var.directory_index_rewrite || !anytrue([for b in var.cloudfront_ordered_cache_behaviors : b.cloudfront_directory_index_rewrite])
-    error_message = "A behavior with directory_index_rewrite = true needs var.directory_index_rewrite = true, which creates the function."
+    condition     = var.cloudfront_directory_index_rewrite || !anytrue([for b in var.cloudfront_ordered_cache_behaviors : b.cloudfront_directory_index_rewrite])
+    error_message = "A behavior with cloudfront_directory_index_rewrite = true needs var.directory_index_rewrite = true, which creates the function."
   }
 }
 
