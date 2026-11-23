@@ -194,13 +194,6 @@ resource "aws_cloudfront_distribution" "web" {
     ssl_support_method       = var.cloudfront_ssl_support_method
   }
 
-  lifecycle {
-    action_trigger {
-      events  = [after_update]
-      actions = [action.aws_cloudfront_create_invalidation.full]
-    }
-  }
-
   tags = merge(local.common_tags, {
     Name    = local.cf_oac_name
     Service = "cloudfront"
